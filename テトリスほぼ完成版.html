@@ -1,0 +1,1357 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tetra challenge</title>
+<style>
+    body {
+        background-color: #111;
+        color: #eee;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin: 0;
+        padding: 20px;
+    }
+    h1 { margin-top: 0; margin-bottom: 15px; }
+    #game-wrapper {
+        display: flex;
+        gap: 20px;
+        align-items: flex-start;
+        position: relative;
+    }
+    .side-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+        align-items: center;
+        width: 150px;
+    }
+    .stats-panel {
+        width: 180px; 
+        justify-content: flex-start;
+    }
+    .box {
+        background-color: #222;
+        border: 2px solid #444;
+        padding: 10px;
+        border-radius: 8px;
+        text-align: center;
+        width: 100%;
+        box-sizing: border-box;
+    }
+    canvas {
+        background-color: #000;
+        border: 2px solid #555;
+        box-shadow: 0 0 10px rgba(0,0,0,0.8);
+    }
+    canvas#board {
+        border-color: #888;
+    }
+    
+    #action-display {
+        min-height: 80px;
+        width: 100%;
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        font-size: 16px;
+        line-height: 1.2;
+    }
+    .action-text { color: #0f0; font-weight: bold; min-height: 20px; margin-bottom: 2px; }
+    .b2b-text { color: #ff0; font-weight: bold; font-style: italic; min-height: 20px; margin-bottom: 2px; }
+    .ren-text { color: #f80; font-weight: bold; min-height: 20px; }
+
+    /* BOOST表示用 */
+    #boost-box { width: 100%; text-align: center; }
+    #boost-val { font-size: 24px; font-weight: bold; color: #fff; font-family: monospace; margin: 5px 0; }
+    #boost-gauge-container {
+        width: 100%; height: 15px; background: #333;
+        border: 1px solid #777; margin-top: 5px;
+        position: relative; border-radius: 2px; overflow: hidden;
+    }
+    #boost-gauge-bar {
+        height: 100%; width: 0%;
+        background-color: rgb(255,255,255);
+    }
+    .boost-mark {
+        position: absolute; top: 0; bottom: 0; width: 1px;
+        background: rgba(0,0,0,0.8); z-index: 10;
+    }
+
+    /* Stats表示用 */
+    .stat-label { font-size: 14px; color: #aaa; margin-bottom: 5px; font-weight: bold; }
+    .stat-val { font-size: 24px; font-weight: bold; font-family: monospace; }
+    #time-val { color: #fff; }
+    #level-val { color: #0df; }
+    #total-attack-val { color: #ff0; }
+    #attack-val { color: #f00; }
+    #attack-box { visibility: hidden; border-color: #f00; background-color: #311; }
+
+    /* 設定モーダル用CSS */
+    #settings-btn {
+        padding: 10px; background-color: #4CAF50; color: white;
+        border: none; border-radius: 5px; cursor: pointer;
+        font-size: 14px; width: 100%; position: relative; z-index: 120; 
+    }
+    #settings-btn:hover { background-color: #45a049; }
+    
+    #modal {
+        display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0,0,0,0.8); justify-content: center; align-items: center; z-index: 200;
+    }
+    #modal-content {
+        background: #333; padding: 30px; border-radius: 10px; width: 400px; max-width: 90%;
+    }
+    .config-row {
+        display: flex; justify-content: space-between; align-items: center;
+        margin-bottom: 12px; border-bottom: 1px solid #444; padding-bottom: 8px;
+    }
+    .config-row:last-child { border-bottom: none; }
+    .config-btn {
+        padding: 6px 12px; background: #555; border: 1px solid #777;
+        color: white; border-radius: 4px; cursor: pointer; min-width: 120px;
+    }
+    .config-btn:hover { background: #666; }
+    
+    #overlay {
+        display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0,0,0,0.9); justify-content: center; align-items: center;
+        z-index: 210; color: #0f0; font-size: 24px; font-weight: bold;
+    }
+
+    #game-over-overlay {
+        display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0,0,0,0.8); flex-direction: column;
+        justify-content: center; align-items: center;
+        z-index: 90; color: #f00; font-size: 32px; font-weight: bold; text-align: center;
+    }
+    
+    .modal-close {
+        display: block; margin: 20px auto 0; padding: 10px 30px;
+        background: #e74c3c; color: white; border: none; border-radius: 5px; cursor: pointer;
+    }
+    .modal-close:hover { background: #c0392b; }
+</style>
+</head>
+<body>
+
+<h1>SRS Tetris Clone</h1>
+
+<div id="game-wrapper">
+    <!-- Left panel -->
+    <div class="side-panel">
+        <div class="box">
+            <div>HOLD</div>
+            <canvas id="hold-canvas" width="120" height="120"></canvas>
+        </div>
+        
+        <div id="action-display">
+            <div id="action-text" class="action-text"></div>
+            <div id="b2b-text" class="b2b-text"></div>
+            <div id="ren-text" class="ren-text"></div>
+        </div>
+
+        <div id="boost-box" class="box">
+            <div class="stat-label">BOOST</div>
+            <div id="boost-val">0.0</div>
+            <div id="boost-gauge-container">
+                <div id="boost-gauge-bar"></div>
+                <div class="boost-mark" style="left: 25%;"></div> <!-- 25 -->
+                <div class="boost-mark" style="left: 50%;"></div> <!-- 50 -->
+                <div class="boost-mark" style="left: 75%;"></div> <!-- 75 -->
+            </div>
+        </div>
+        
+        <button id="settings-btn">キー設定<br>(Settings)</button>
+    </div>
+
+    <!-- Center panel (Board + Garbage Gauge) -->
+    <div style="display: flex; gap: 5px; position: relative;">
+        <div style="position: relative;">
+            <canvas id="board" width="300" height="630"></canvas>
+            <div id="game-over-overlay">
+                <div>GAME OVER</div>
+                <div style="font-size: 16px; margin-top: 15px; color: #fff;">リトライキーを押してください</div>
+            </div>
+        </div>
+        <div style="position: relative;">
+            <canvas id="garbage-gauge" width="15" height="630" style="background-color: #111; border: 1px solid #555;"></canvas>
+            <div id="garbage-overflow" style="position: absolute; top: -20px; left: -10px; width: 35px; text-align: center; color: red; font-weight: bold; font-size: 14px;"></div>
+        </div>
+    </div>
+
+    <!-- Right panel 1 (NEXT) -->
+    <div class="side-panel">
+        <div class="box">
+            <div>NEXT</div>
+            <canvas id="next-canvas" width="120" height="630"></canvas>
+        </div>
+    </div>
+
+    <!-- Right panel 2 (Stats) -->
+    <div class="side-panel stats-panel">
+        <div class="box">
+            <div class="stat-label">TIME</div>
+            <div id="time-val" class="stat-val">00:00.00</div>
+        </div>
+        <div class="box">
+            <div class="stat-label">LEVEL</div>
+            <div id="level-val" class="stat-val">1</div>
+        </div>
+        <div class="box">
+            <div class="stat-label">TOTAL ATTACK</div>
+            <div id="total-attack-val" class="stat-val">0</div>
+        </div>
+        <div class="box" id="attack-box">
+            <div class="stat-label">ATTACK</div>
+            <div id="attack-val" class="stat-val">+0</div>
+        </div>
+    </div>
+</div>
+
+<!-- キーコンフィグ用モーダル -->
+<div id="modal">
+    <div id="modal-content">
+        <h2 style="text-align:center; margin-top:0;">キーコンフィグ</h2>
+        <div id="config-list"></div>
+        <button class="modal-close" onclick="closeSettings()">閉じる</button>
+    </div>
+    <div id="overlay">何かキーを押してください... (ESCでキャンセル)</div>
+</div>
+
+<script>
+/** 
+ * ゲーム定数と設定 
+ */
+const COLS = 10;
+const VISIBLE_ROWS = 21; 
+const BUFFER_ROWS = 19;  
+const ROWS = VISIBLE_ROWS + BUFFER_ROWS; 
+const BLOCK_SIZE = 30; 
+
+const canvas = document.getElementById('board');
+const ctx = canvas.getContext('2d');
+const holdCtx = document.getElementById('hold-canvas').getContext('2d');
+const nextCtx = document.getElementById('next-canvas').getContext('2d');
+const garbageGaugeCanvas = document.getElementById('garbage-gauge');
+const ctxG = garbageGaugeCanvas.getContext('2d');
+
+const SHAPES = {
+    'I': [[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]], 
+    'J': [[1,0,0],[1,1,1],[0,0,0]],                 
+    'L': [[0,0,1],[1,1,1],[0,0,0]],                 
+    'O': [[0,0,0,0],[0,1,1,0],[0,1,1,0],[0,0,0,0]], 
+    'S': [[0,1,1],[1,1,0],[0,0,0]],
+    'T': [[0,1,0],[1,1,1],[0,0,0]],                 
+    'Z': [[1,1,0],[0,1,1],[0,0,0]]
+};
+
+const COLORS = {
+    'I': '#00FFFF', 'J': '#4444FF', 'L': '#FFA500', 'O': '#FFFF00',
+    'S': '#00FF00', 'T': '#B200B2', 'Z': '#FF0000',
+    'Garbage': '#888888',
+    'Solid': '#444444' 
+};
+
+const KICK_DATA = {
+    'JLSTZ': {
+        '0->R': [[0,0], [-1,0], [-1,1], [0,-2], [-1,-2]], 'R->0': [[0,0], [1,0], [1,-1], [0,2], [1,2]],
+        'R->2': [[0,0], [1,0], [1,-1], [0,2], [1,2]], '2->R': [[0,0], [-1,0], [-1,1], [0,-2], [-1,-2]],
+        '2->L': [[0,0], [1,0], [1,1], [0,-2], [1,-2]], 'L->2': [[0,0], [-1,0], [-1,-1], [0,2], [-1,2]],
+        'L->0': [[0,0], [-1,0], [-1,-1], [0,2], [-1,2]], '0->L': [[0,0], [1,0], [1,1], [0,-2], [1,-2]]
+    },
+    'I': {
+        '0->R': [[0,0], [-2,0], [1,0], [-2,-1], [1,2]], 'R->0': [[0,0], [2,0], [-1,0], [2,1], [-1,-2]],
+        'R->2': [[0,0], [-1,0], [2,0], [-1,2], [2,-1]], '2->R': [[0,0], [1,0], [-2,0], [1,-2], [-2,1]],
+        '2->L': [[0,0], [2,0], [-1,0], [2,1], [-1,-2]], 'L->2': [[0,0], [-2,0], [1,0], [-2,-1], [1,2]],
+        'L->0': [[0,0], [1,0], [-2,0], [1,-2], [-2,1]], '0->L': [[0,0], [-1,0], [2,0], [-1,2], [2,-1]]
+    }
+};
+
+const ROTATION_TRANSITIONS = {
+    '1': { 0: '0->R', 1: 'R->2', 2: '2->L', 3: 'L->0' }, 
+    '-1': { 0: '0->L', 3: 'L->2', 2: '2->R', 1: 'R->0' } 
+};
+
+/**
+ * ゲームステータス管理
+ */
+let gameState = 'countdown'; 
+let countdownTimer = 3000;
+
+let board = Array.from({length: ROWS}, () => new Array(COLS).fill(0));
+let piece = null;
+let nextBag = [];
+let holdType = null;
+let alreadyHeld = false;
+
+let lastTime = 0;
+let dropCounter = 0;
+const dropInterval = 1000; 
+
+let lockDelayTimer = 0;
+let lockManipulationCount = 0;
+
+let maxYReached = 0;
+let manipulationCountForShift = 0;
+let shiftThresholdY = -1; 
+
+let keysPressed = {};
+let dasTimer = 0;
+let arrTimer = 0;
+let dasState = 'idle';
+let currentDasDir = 0; 
+
+let lastAction = null; 
+let lastKickIndex = -1; 
+let actionTextTimer = 0;
+let lastClearWasB2BEligible = false;
+let comboCount = 0;
+
+// Stats
+let gameTime = 0;
+let gameLevel = 1;
+let totalAttack = 0;
+let boostValue = 0;
+let boostDecreaseTimer = 0;
+
+// 消せないブロックのタイマー (初回10分)
+let nextSolidGarbageTime = 600000; 
+
+// お邪魔ブロック管理
+let garbageQueue = []; 
+let garbageScheduleQueue = []; 
+let nextScheduledGarbage = null;
+let garbageSpawnTimer = 0;
+let lastGarbageHole = -1;
+
+let keyConfig = JSON.parse(localStorage.getItem('tetrisConfig')) || {
+    'left': 'ArrowLeft', 'right': 'ArrowRight', 'softDrop': 'ArrowDown',
+    'hardDrop': 'ArrowUp', 'rotateCW': 'KeyX', 'rotateCCW': 'KeyZ',
+    'hold': 'KeyC', 'retry': 'KeyR'
+};
+
+const ACTION_LABELS = {
+    'left': '左移動', 'right': '右移動', 'softDrop': 'ソフトドロップ',
+    'hardDrop': 'ハードドロップ', 'rotateCW': '右回転(CW)', 
+    'rotateCCW': '左回転(CCW)', 'hold': 'ホールド', 'retry': 'リトライ'
+};
+
+let isConfiguring = false;
+let activeAction = null;
+let gamePaused = false;
+
+/**
+ * 初期化とメインループ
+ */
+function init() {
+    generateBag();
+    spawnPiece();
+    resetGameStats();
+    
+    gameState = 'countdown';
+    countdownTimer = 3000;
+    
+    lastTime = performance.now();
+    requestAnimationFrame(update);
+}
+
+function resetGameStats() {
+    gameTime = 0;
+    gameLevel = 1;
+    totalAttack = 0;
+    boostValue = 0;
+    boostDecreaseTimer = 0;
+    nextSolidGarbageTime = 600000;
+
+    document.getElementById('total-attack-val').innerText = totalAttack;
+    document.getElementById('level-val').innerText = gameLevel;
+    updateTimeDisplay();
+    updateBoostDisplay();
+    
+    garbageQueue = [];
+    garbageScheduleQueue = [];
+    lastGarbageHole = -1;
+    generateGarbageSchedule();
+    nextScheduledGarbage = garbageScheduleQueue.shift();
+    garbageSpawnTimer = nextScheduledGarbage.delay * 1000;
+}
+
+function generateGarbageSchedule() {
+    let minL = Math.floor(1 + gameLevel / 10);
+    let maxL = Math.floor(3 + gameLevel / 5);
+    if (minL > maxL) maxL = minL;
+    let L = Math.floor(Math.random() * (maxL - minL + 1)) + minL;
+    
+    let minD = Math.max(1, 5 - gameLevel / 50);
+    let maxD = Math.max(1, 20 - gameLevel / 10);
+    if (minD > maxD) maxD = minD;
+    
+    let stepsD = Math.floor((maxD - minD) * 10) + 1;
+    let T = minD + Math.floor(Math.random() * stepsD) / 10;
+    T = Math.round(T * 10) / 10;
+
+    let schedule = [{lines: L, delay: T}];
+
+    if (Math.random() < 0.5) {
+        if (L >= 4 && T >= 2.0) {
+            let L1 = Math.floor(Math.random() * (L - 3)) + 2; 
+            let L2 = L - L1;
+
+            let stepsT = Math.floor((T - 2.0) * 10) + 1;
+            let T1 = 1.0 + Math.floor(Math.random() * stepsT) / 10;
+            let T2 = T - T1;
+            T1 = Math.round(T1 * 10) / 10;
+            T2 = Math.round(T2 * 10) / 10;
+
+            schedule = [{lines: L1, delay: T1}, {lines: L2, delay: T2}];
+
+            if (Math.random() < 0.5) {
+                let targetIndex = schedule[0].delay >= schedule[1].delay ? 0 : 1;
+                let target = schedule[targetIndex];
+
+                if (target.lines >= 2 && target.delay >= 1.0) {
+                    let L3 = Math.floor(Math.random() * (target.lines - 1)) + 1; 
+                    let L4 = target.lines - L3;
+
+                    let stepsT2 = Math.floor((target.delay - 1.0) * 10) + 1;
+                    let T3 = 0.5 + Math.floor(Math.random() * stepsT2) / 10;
+                    let T4 = target.delay - T3;
+                    T3 = Math.round(T3 * 10) / 10;
+                    T4 = Math.round(T4 * 10) / 10;
+
+                    let newItems = [{lines: L3, delay: T3}, {lines: L4, delay: T4}];
+                    schedule.splice(targetIndex, 1, ...newItems);
+                }
+            }
+        }
+    }
+    
+    for (let item of schedule) {
+        garbageScheduleQueue.push(item);
+    }
+}
+
+function generateBag() {
+    let types = ['I', 'J', 'L', 'O', 'S', 'T', 'Z'];
+    for (let i = types.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [types[i], types[j]] = [types[j], types[i]];
+    }
+    nextBag = nextBag.concat(types);
+}
+
+function getNext() {
+    if (nextBag.length <= 5) generateBag();
+    return nextBag.shift();
+}
+
+function spawnPiece(type = null) {
+    if (!type) type = getNext();
+    piece = {
+        type: type,
+        matrix: JSON.parse(JSON.stringify(SHAPES[type])),
+        x: 3,
+        y: BUFFER_ROWS, 
+        state: 0 
+    };
+    
+    if (type === 'I' || type === 'O') piece.y = BUFFER_ROWS - 1;
+
+    lockDelayTimer = 0;
+    lockManipulationCount = 0;
+    lastAction = null;
+    lastKickIndex = -1;
+    
+    maxYReached = piece.y;
+    manipulationCountForShift = 0;
+    shiftThresholdY = -1;
+
+    if (collide()) {
+        if (piece.type !== 'I') {
+            piece.y--; 
+        }
+        if (collide()) {
+            gameOver();
+            return;
+        }
+    }
+}
+
+function updateYTrack() {
+    if (piece.y > maxYReached) {
+        maxYReached = piece.y;
+        manipulationCountForShift = 0;
+        shiftThresholdY = -1;
+    }
+}
+
+function onManipulationSuccess() {
+    updateYTrack(); 
+    if (piece.y <= maxYReached) {
+        manipulationCountForShift++;
+    }
+    if (manipulationCountForShift >= 15) {
+        shiftThresholdY = maxYReached;
+    }
+}
+
+function update(time) {
+    const dt = time - lastTime;
+    lastTime = time;
+
+    if (gamePaused) {
+        requestAnimationFrame(update);
+        return;
+    }
+
+    if (gameState === 'countdown') {
+        countdownTimer -= dt;
+        if (countdownTimer <= 0) {
+            gameState = 'playing';
+            
+            let dir = 0;
+            if (keysPressed['left']) dir = -1;
+            else if (keysPressed['right']) dir = 1;
+            
+            if (dir !== 0) {
+                currentDasDir = dir;
+                dasState = 'repeating';
+                dasTimer = 150;
+                arrTimer = 0;
+                move(dir);
+            }
+        }
+        draw();
+        requestAnimationFrame(update);
+        return;
+    }
+    
+    if (gameState === 'gameover') {
+        draw();
+        requestAnimationFrame(update);
+        return;
+    }
+
+    // --- Playing State ---
+    gameTime += dt;
+    updateTimeDisplay();
+    handleInput(dt);
+
+    // 時間経過による強制せり上がり（消せないブロック）
+    while (gameTime >= nextSolidGarbageTime) {
+        nextSolidGarbageTime += 30000;
+        board.shift();
+        board.push(new Array(COLS).fill('Solid'));
+        if (piece) {
+            // 現在位置でブロックが重なる場合のみ上に押し上げる
+            while (collide()) {
+                piece.y--;
+            }
+            updateYTrack();
+        }
+    }
+
+    garbageSpawnTimer -= dt;
+    while (garbageSpawnTimer <= 0) {
+        if (nextScheduledGarbage) {
+            let holes = [];
+            for (let i = 0; i < nextScheduledGarbage.lines; i++) {
+                let hole = -1;
+                if (lastGarbageHole === -1) {
+                    hole = Math.floor(Math.random() * 10);
+                } else {
+                    if (Math.random() * 100 < (100 - gameLevel)) {
+                        hole = lastGarbageHole;
+                    } else {
+                        hole = Math.floor(Math.random() * 9);
+                        if (hole >= lastGarbageHole) hole++;
+                    }
+                }
+                lastGarbageHole = hole;
+                holes.push(hole);
+            }
+            garbageQueue.push({ lines: nextScheduledGarbage.lines, holes: holes, age: 0 });
+        }
+
+        if (garbageScheduleQueue.length === 0) {
+            generateGarbageSchedule();
+        }
+        nextScheduledGarbage = garbageScheduleQueue.shift();
+        garbageSpawnTimer += nextScheduledGarbage.delay * 1000;
+    }
+
+    for (let g of garbageQueue) {
+        g.age += dt;
+    }
+
+    if (actionTextTimer > 0) {
+        actionTextTimer -= dt;
+        if (actionTextTimer <= 0) {
+            actionTextTimer = 0;
+            document.getElementById('action-text').innerHTML = "";
+            document.getElementById('b2b-text').innerHTML = "";
+            document.getElementById('attack-box').style.visibility = "hidden";
+        }
+    }
+
+    if (boostValue > 0) {
+        boostDecreaseTimer += dt;
+        while (boostDecreaseTimer >= 100) { 
+            let decrease = boostValue / (Math.pow(10.1 - gameLevel / 10, 2) * 10);
+            boostValue -= decrease;
+            if (boostValue < 0) boostValue = 0;
+            boostDecreaseTimer -= 100;
+        }
+    }
+    updateBoostDisplay();
+
+    dropCounter += dt;
+    let currentDropInterval = keysPressed['softDrop'] ? dropInterval / 40 : dropInterval;
+    
+    if (dropCounter > currentDropInterval) {
+        piece.y++;
+        if (collide()) {
+            piece.y--;
+        } else {
+            lastAction = 'fall';
+            updateYTrack(); 
+        }
+        dropCounter = 0;
+    }
+
+    if (isGround()) {
+        lockDelayTimer += dt;
+        if (lockDelayTimer >= 500 || lockManipulationCount >= 15) {
+            lockPiece();
+        }
+    } else {
+        lockDelayTimer = 0;
+    }
+
+    draw();
+    requestAnimationFrame(update);
+}
+
+function updateTimeDisplay() {
+    let m = Math.floor(gameTime / 60000);
+    let s = Math.floor((gameTime % 60000) / 1000);
+    let ms = Math.floor((gameTime % 1000) / 10);
+    let timeStr = String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0') + '.' + String(ms).padStart(2, '0');
+    document.getElementById('time-val').innerText = timeStr;
+}
+
+function updateBoostDisplay() {
+    let displayValue = (Math.floor(boostValue * 10) / 10).toFixed(1);
+    document.getElementById('boost-val').innerText = displayValue;
+
+    let gaugePercent = Math.min(100, (boostValue / 100) * 100);
+    let bar = document.getElementById('boost-gauge-bar');
+    bar.style.width = gaugePercent + "%";
+
+    let r = 255, g = 255, b = 255;
+    if (boostValue <= 50) {
+        let p = boostValue / 50;
+        b = Math.floor(255 * (1 - p)); 
+    } else {
+        let p = Math.min(50, boostValue - 50) / 50;
+        g = Math.floor(255 * (1 - p));
+        b = 0;
+    }
+    bar.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
+}
+
+/**
+ * 判定と操作
+ */
+function collide(offsetX = 0, offsetY = 0, matrix = piece.matrix) {
+    for (let y = 0; y < matrix.length; y++) {
+        for (let x = 0; x < matrix[y].length; x++) {
+            if (matrix[y][x]) {
+                let newX = piece.x + x + offsetX;
+                let newY = piece.y + y + offsetY;
+                if (newX < 0 || newX >= COLS || newY >= ROWS) return true;
+                if (newY >= 0 && board[newY][newX]) return true;
+            }
+        }
+    }
+    return false;
+}
+
+function isGround() {
+    return collide(0, 1);
+}
+
+function resetLockDelayIfGround() {
+    if (isGround() && lockManipulationCount < 15) {
+        lockDelayTimer = 0;
+        lockManipulationCount++;
+    }
+}
+
+function move(dir) {
+    if (!collide(dir, 0)) {
+        piece.x += dir;
+        lastAction = 'move';
+        onManipulationSuccess();
+        resetLockDelayIfGround();
+    }
+}
+
+function rotateMatrix(matrix, dir) {
+    const N = matrix.length;
+    let res = Array.from({length: N}, () => new Array(N).fill(0));
+    for (let y = 0; y < N; y++) {
+        for (let x = 0; x < N; x++) {
+            if (dir === 1) res[x][N - 1 - y] = matrix[y][x]; 
+            else res[N - 1 - x][y] = matrix[y][x]; 
+        }
+    }
+    return res;
+}
+
+function rotate(dir) { 
+    if (piece.type === 'O') return;
+    
+    let nextMatrix = rotateMatrix(piece.matrix, dir);
+    let transKey = ROTATION_TRANSITIONS[dir.toString()][piece.state];
+    let kickTable = (piece.type === 'I') ? KICK_DATA['I'] : KICK_DATA['JLSTZ'];
+    let tests = kickTable[transKey];
+
+    let success = false;
+    for (let i = 0; i < tests.length; i++) {
+        let [kx, ky] = tests[i];
+        if (!collide(kx, -ky, nextMatrix)) {
+            piece.matrix = nextMatrix;
+            piece.x += kx;
+            piece.y -= ky;
+            piece.state = (piece.state + dir + 4) % 4;
+            
+            lastAction = 'rotate';
+            lastKickIndex = i; 
+            success = true;
+            break;
+        }
+    }
+
+    if (success) {
+        onManipulationSuccess();
+        
+        if (piece.type === 'I' && shiftThresholdY !== -1 && piece.y <= shiftThresholdY) {
+            if (!collide(0, 1) && collide(0, 2)) {
+                piece.y++;
+                updateYTrack();
+            }
+        }
+        
+        resetLockDelayIfGround();
+    }
+}
+
+function hardDrop() {
+    let dropped = false;
+    while (!collide(0, 1)) {
+        piece.y++;
+        dropped = true;
+    }
+    if (dropped) {
+        lastAction = 'drop';
+        updateYTrack();
+    }
+    lockDelayTimer = 500;
+    lockPiece();
+}
+
+function isSolid(x, y) {
+    if (x < 0 || x >= COLS || y >= ROWS) return true; 
+    if (y < 0) return false; 
+    return board[y][x] !== 0;
+}
+
+function checkTSpin() {
+    if (piece.type !== 'T') return null;
+    if (lastAction !== 'rotate') return null;
+
+    let cx = piece.x + 1;
+    let cy = piece.y + 1;
+    
+    let c1 = isSolid(cx - 1, cy - 1); 
+    let c2 = isSolid(cx + 1, cy - 1); 
+    let c3 = isSolid(cx - 1, cy + 1); 
+    let c4 = isSolid(cx + 1, cy + 1); 
+
+    let cornerCount = (c1?1:0) + (c2?1:0) + (c3?1:0) + (c4?1:0);
+    if (cornerCount < 3) return null;
+
+    let aSolid, bSolid;
+    switch(piece.state) {
+        case 0: aSolid = c1; bSolid = c2; break; 
+        case 1: aSolid = c2; bSolid = c4; break; 
+        case 2: aSolid = c4; bSolid = c3; break; 
+        case 3: aSolid = c3; bSolid = c1; break; 
+    }
+
+    let isMini = false;
+    if (!aSolid || !bSolid) {
+        if (lastKickIndex !== 4) {
+            isMini = true;
+        }
+    }
+    return isMini ? 'mini' : 'normal';
+}
+
+function lockPiece() {
+    let tSpinType = checkTSpin();
+    let isVisible = false;
+
+    for (let y = 0; y < piece.matrix.length; y++) {
+        for (let x = 0; x < piece.matrix[y].length; x++) {
+            if (piece.matrix[y][x]) {
+                let boardY = piece.y + y;
+                if (boardY >= 0) {
+                    board[boardY][piece.x + x] = piece.type;
+                    if (boardY >= 20) {
+                        isVisible = true; 
+                    }
+                }
+            }
+        }
+    }
+
+    if (!isVisible) {
+        gameOver();
+        return;
+    }
+    
+    let lines = 0;
+    outer: for (let y = ROWS - 1; y >= 0; y--) {
+        if (board[y][0] === 'Solid') continue; 
+
+        for (let x = 0; x < COLS; x++) {
+            if (!board[y][x]) continue outer;
+        }
+        let row = board.splice(y, 1)[0].fill(0);
+        board.unshift(row);
+        lines++;
+        y++; 
+    }
+
+    let isAllClear = true;
+    for (let y = 0; y < ROWS; y++) {
+        for (let x = 0; x < COLS; x++) {
+            if (board[y][x]) {
+                isAllClear = false;
+                break;
+            }
+        }
+        if (!isAllClear) break;
+    }
+
+    if (lines > 0) {
+        actionTextTimer = 0;
+        document.getElementById('action-text').innerHTML = "";
+        document.getElementById('b2b-text').innerHTML = "";
+        document.getElementById('attack-box').style.visibility = "hidden";
+
+        let msg = "";
+        let isB2BEligible = false;
+        let baseAttack = 0;
+        let boostIncrease = 0;
+
+        if (isAllClear) {
+            if (lines === 4) {
+                msg = "TETRA ALL CLEAR";
+                isB2BEligible = true;
+                baseAttack = 8; boostIncrease = 8;
+            } else {
+                msg = "ALL CLEAR"; 
+                baseAttack = 5; boostIncrease = 5;
+            }
+        } else {
+            if (tSpinType === 'normal') {
+                if (lines === 1) { msg = "T-Spin Single"; baseAttack = 2; boostIncrease = 2; }
+                else if (lines === 2) { msg = "T-Spin Double"; baseAttack = 4; boostIncrease = 4; }
+                else if (lines === 3) { msg = "T-Spin Triple"; baseAttack = 6; boostIncrease = 6; }
+                isB2BEligible = true;
+            } else if (tSpinType === 'mini') {
+                if (lines === 1) { msg = "T-Spin Mini Single"; baseAttack = 0; boostIncrease = 0; }
+                else if (lines === 2) { msg = "T-Spin Mini Double"; baseAttack = 1; boostIncrease = 1; }
+                isB2BEligible = true;
+            } else {
+                if (lines === 4) { msg = "TETRA"; baseAttack = 4; boostIncrease = 4; isB2BEligible = true; }
+                else if (lines === 3) { baseAttack = 2; }
+                else if (lines === 2) { baseAttack = 1; }
+            }
+        }
+
+        comboCount++;
+        let renValue = comboCount - 1;
+        let renAttack = 0;
+        if (renValue >= 1) {
+            document.getElementById('ren-text').innerHTML = renValue + " REN";
+            if (renValue >= 15) renAttack = 5;
+            else if (renValue >= 10) renAttack = 4;
+            else if (renValue >= 7) renAttack = 3;
+            else if (renValue >= 4) renAttack = 2;
+            else if (renValue >= 2) renAttack = 1;
+        }
+
+        let b2bMsg = "";
+        let b2bAttack = 0;
+        let b2bBoost = 0;
+        if (isB2BEligible && lastClearWasB2BEligible) {
+            b2bMsg = "Back to Back";
+            b2bAttack = 1;
+            b2bBoost = 1;
+        }
+        lastClearWasB2BEligible = isB2BEligible;
+
+        let calcAttack = baseAttack + renAttack + b2bAttack;
+        let finalAttack = Math.floor(calcAttack * (1 + boostValue / 100));
+
+        if (msg !== "" || b2bMsg !== "") {
+            document.getElementById('action-text').innerHTML = msg;
+            document.getElementById('b2b-text').innerHTML = b2bMsg;
+            actionTextTimer = 2000;
+        }
+
+        if (finalAttack > 0) {
+            document.getElementById('attack-val').innerText = "+" + finalAttack;
+            document.getElementById('attack-box').style.visibility = "visible";
+            actionTextTimer = 2000;
+
+            let attackRemaining = finalAttack;
+            while (attackRemaining > 0 && garbageQueue.length > 0) {
+                let g = garbageQueue[0];
+                if (g.lines <= attackRemaining) {
+                    attackRemaining -= g.lines;
+                    garbageQueue.shift();
+                } else {
+                    g.lines -= attackRemaining;
+                    g.holes.splice(-attackRemaining);
+                    attackRemaining = 0;
+                }
+            }
+
+            totalAttack += attackRemaining;
+            document.getElementById('total-attack-val').innerText = totalAttack;
+            
+            gameLevel = Math.floor(totalAttack / 20) + 1;
+            document.getElementById('level-val').innerText = gameLevel;
+        }
+
+        if (gameLevel < 98) {
+            boostValue += (boostIncrease + b2bBoost);
+        }
+
+    } else {
+        // ライン消去を伴わない設置 -> お邪魔せり上がり
+        let newQueue = [];
+        let holesToAdd = []; 
+        for (let g of garbageQueue) {
+            if (g.age >= 2000) { 
+                for (let i = 0; i < g.lines; i++) {
+                    holesToAdd.push(g.holes[i]);
+                }
+            } else {
+                newQueue.push(g);
+            }
+        }
+        garbageQueue = newQueue;
+
+        if (holesToAdd.length > 0) {
+            let solidCount = 0;
+            for(let y = ROWS - 1; y >= 0; y--){
+                if(board[y][0] === 'Solid') solidCount++;
+                else break;
+            }
+
+            for (let i = 0; i < holesToAdd.length; i++) {
+                board.shift(); 
+                let newRow = new Array(COLS).fill('Garbage');
+                newRow[holesToAdd[i]] = 0;
+                board.splice(ROWS - 1 - solidCount, 0, newRow);
+            }
+        }
+
+        comboCount = 0;
+        document.getElementById('ren-text').innerHTML = "";
+    }
+
+    alreadyHeld = false; 
+    spawnPiece();
+}
+
+function hold() {
+    if (alreadyHeld) return;
+    let currentType = piece.type;
+    if (holdType) {
+        spawnPiece(holdType);
+    } else {
+        spawnPiece();
+    }
+    holdType = currentType;
+    alreadyHeld = true;
+    lockDelayTimer = 0;
+    lockManipulationCount = 0;
+    lastAction = null;
+}
+
+function gameOver() {
+    gameState = 'gameover';
+    document.getElementById('game-over-overlay').style.display = 'flex';
+}
+
+function retryGame() {
+    document.getElementById('game-over-overlay').style.display = 'none';
+    
+    board = Array.from({length: ROWS}, () => new Array(COLS).fill(0));
+    nextBag = [];
+    holdType = null;
+    alreadyHeld = false;
+    
+    lastClearWasB2BEligible = false;
+    comboCount = 0;
+    document.getElementById('action-text').innerHTML = "";
+    document.getElementById('b2b-text').innerHTML = "";
+    document.getElementById('ren-text').innerHTML = "";
+    document.getElementById('attack-box').style.visibility = "hidden";
+    actionTextTimer = 0;
+    
+    keysPressed = {};
+    dasState = 'idle';
+
+    generateBag();
+    spawnPiece();
+    resetGameStats();
+    
+    gameState = 'countdown';
+    countdownTimer = 3000;
+    
+    lastTime = performance.now();
+}
+
+/**
+ * 入力処理 (DAS / ARR)
+ */
+document.addEventListener('keydown', e => {
+    if (isConfiguring && activeAction) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        if (e.key === 'Escape') {
+            closeOverlay();
+            return;
+        }
+        
+        let inputKey = e.code || e.key || "Unknown";
+        keyConfig[activeAction] = inputKey;
+        localStorage.setItem('tetrisConfig', JSON.stringify(keyConfig));
+        renderSettings();
+        closeOverlay();
+        return;
+    }
+
+    let action = getActionFromKey(e.code || e.key);
+    
+    if (gameState === 'gameover') {
+        if (action === 'retry') {
+            e.preventDefault();
+            retryGame();
+        }
+        return; 
+    }
+    
+    if (gameState === 'countdown' && (action === 'left' || action === 'right')) {
+        // 通過
+    } else if (gameState !== 'playing' && action !== 'retry') {
+        return;
+    }
+    
+    if (gamePaused) return;
+
+    if (action) {
+        e.preventDefault(); 
+        if (!keysPressed[action]) {
+            keysPressed[action] = true;
+            
+            if (action === 'left') { 
+                currentDasDir = -1; dasState = 'waiting'; dasTimer = 0; arrTimer = 0; 
+                if (gameState === 'playing') move(-1);
+            }
+            if (action === 'right') { 
+                currentDasDir = 1; dasState = 'waiting'; dasTimer = 0; arrTimer = 0; 
+                if (gameState === 'playing') move(1);
+            }
+            
+            if (gameState === 'playing') {
+                if (action === 'rotateCW') rotate(1);
+                if (action === 'rotateCCW') rotate(-1);
+                if (action === 'hardDrop') hardDrop();
+                if (action === 'hold') hold();
+            }
+            if (action === 'retry') retryGame();
+        }
+    }
+});
+
+document.addEventListener('keyup', e => {
+    let action = getActionFromKey(e.code || e.key);
+    if (action) {
+        keysPressed[action] = false;
+        if ((action === 'left' && currentDasDir === -1) || (action === 'right' && currentDasDir === 1)) {
+            dasState = 'idle';
+        }
+    }
+});
+
+function getActionFromKey(key) {
+    for (let action in keyConfig) {
+        if (keyConfig[action] === key) return action;
+    }
+    return null;
+}
+
+function handleInput(dt) {
+    if (keysPressed['left'] || keysPressed['right']) {
+        let dir = keysPressed['left'] ? -1 : 1;
+        if (dir === currentDasDir) {
+            if (dasState === 'waiting') {
+                dasTimer += dt;
+                if (dasTimer >= 150) { 
+                    dasState = 'repeating';
+                    arrTimer = 0;
+                    move(dir); 
+                }
+            } else if (dasState === 'repeating') {
+                arrTimer += dt;
+                while (arrTimer >= 30) { 
+                    move(dir);
+                    arrTimer -= 30;
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 描画関連
+ */
+function drawBlock(ctx, x, y, color, size = BLOCK_SIZE) {
+    ctx.fillStyle = color;
+    ctx.fillRect(x * size, y * size, size, size);
+    ctx.strokeStyle = '#222';
+    ctx.strokeRect(x * size, y * size, size, size);
+    
+    if (color !== COLORS['Garbage'] && color !== COLORS['Solid']) { 
+        ctx.fillStyle = 'rgba(255,255,255,0.3)';
+        ctx.fillRect(x * size, y * size, size, size/4);
+    } else {
+        ctx.fillStyle = 'rgba(0,0,0,0.3)';
+        ctx.fillRect(x * size, y * size, size, size);
+    }
+}
+
+function drawMatrix(ctx, matrix, offsetX, offsetY, color, size = BLOCK_SIZE, alpha = 1.0) {
+    ctx.globalAlpha = alpha;
+    for (let y = 0; y < matrix.length; y++) {
+        for (let x = 0; x < matrix[y].length; x++) {
+            if (matrix[y][x]) {
+                drawBlock(ctx, offsetX + x, offsetY + y, color, size);
+            }
+        }
+    }
+    ctx.globalAlpha = 1.0;
+}
+
+function getGhostY() {
+    let gy = piece.y;
+    while (!collide(0, gy - piece.y + 1)) {
+        gy++;
+    }
+    return gy;
+}
+
+function drawGarbageGauge() {
+    ctxG.fillStyle = '#111';
+    ctxG.fillRect(0, 0, garbageGaugeCanvas.width, garbageGaugeCanvas.height);
+    
+    let y = 630;
+    let totalDrawLines = 0;
+    
+    for (let g of garbageQueue) {
+        let color = '#FFFF00'; 
+        if (g.age >= 2000) color = '#FF0000'; 
+        else if (g.age >= 1000) color = '#FFA500'; 
+        
+        let drawLines = g.lines;
+        if (totalDrawLines + drawLines > 20) {
+            drawLines = 20 - totalDrawLines;
+        }
+        
+        if (drawLines > 0) {
+            ctxG.fillStyle = color;
+            ctxG.fillRect(0, y - drawLines * 30, 15, drawLines * 30);
+            
+            ctxG.strokeStyle = '#222';
+            for (let i = 0; i < drawLines; i++) {
+                ctxG.strokeRect(0, y - (i+1)*30, 15, 30);
+            }
+            y -= drawLines * 30;
+            totalDrawLines += drawLines;
+        }
+    }
+    
+    let totalAll = garbageQueue.reduce((sum, g) => sum + g.lines, 0);
+    let overflowDiv = document.getElementById('garbage-overflow');
+    if (totalAll > 20) {
+        overflowDiv.innerText = "+" + (totalAll - 20);
+    } else {
+        overflowDiv.innerText = "";
+    }
+}
+
+function draw() {
+    let maxHeightAll = 0;
+    let maxHeightCenter = 0;
+    for (let y = 0; y < ROWS; y++) {
+        for (let x = 0; x < COLS; x++) {
+            if (board[y][x]) {
+                let h = ROWS - y;
+                if (h > maxHeightAll) maxHeightAll = h;
+                if (x >= 3 && x <= 6) { 
+                    if (h > maxHeightCenter) maxHeightCenter = h;
+                }
+            }
+        }
+    }
+    
+    let totalGarbage = garbageQueue.reduce((sum, g) => sum + g.lines, 0);
+    let isPinch = (maxHeightCenter >= 19) || (maxHeightAll + totalGarbage >= 20);
+    
+    if (isPinch) {
+        ctx.fillStyle = '#300'; 
+    } else {
+        ctx.fillStyle = '#000'; 
+    }
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    holdCtx.fillStyle = '#222';
+    holdCtx.fillRect(0, 0, 120, 120);
+    
+    nextCtx.fillStyle = '#222';
+    nextCtx.fillRect(0, 0, 120, 630);
+
+    ctx.strokeStyle = '#444';
+    for(let i=0; i<=COLS; i++) {
+        ctx.beginPath(); ctx.moveTo(i*BLOCK_SIZE, 0); ctx.lineTo(i*BLOCK_SIZE, canvas.height); ctx.stroke();
+    }
+    for(let i=0; i<=VISIBLE_ROWS; i++) {
+        ctx.beginPath(); ctx.moveTo(0, i*BLOCK_SIZE); ctx.lineTo(canvas.width, i*BLOCK_SIZE); ctx.stroke();
+    }
+
+    ctx.strokeStyle = '#FF0';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, BLOCK_SIZE);
+    ctx.lineTo(canvas.width, BLOCK_SIZE);
+    ctx.stroke();
+    ctx.lineWidth = 1;
+
+    for (let y = BUFFER_ROWS; y < ROWS; y++) {
+        for (let x = 0; x < COLS; x++) {
+            if (board[y][x]) {
+                drawBlock(ctx, x, y - BUFFER_ROWS, COLORS[board[y][x]]);
+            }
+        }
+    }
+
+    if (piece && gameState !== 'gameover') {
+        let ghostY = getGhostY();
+        drawMatrix(ctx, piece.matrix, piece.x, ghostY - BUFFER_ROWS, COLORS[piece.type], BLOCK_SIZE, 0.3);
+        drawMatrix(ctx, piece.matrix, piece.x, piece.y - BUFFER_ROWS, COLORS[piece.type]);
+    }
+
+    if (holdType) {
+        let m = SHAPES[holdType];
+        let offX = (4 - m[0].length) / 2;
+        let offY = (4 - m.length) / 2;
+        drawMatrix(holdCtx, m, offX, offY, COLORS[holdType], 30);
+    }
+
+    for (let i = 0; i < 5; i++) {
+        let type = nextBag[i];
+        if (type) {
+            let m = SHAPES[type];
+            let offX = (4 - m[0].length) / 2;
+            let offY = (4 - m.length) / 2 + (i * 4);
+            drawMatrix(nextCtx, m, offX, offY, COLORS[type], 30);
+        }
+    }
+
+    drawGarbageGauge();
+
+    if (gameState === 'countdown') {
+        let count = Math.ceil(countdownTimer / 1000);
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 80px "Segoe UI", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(count, canvas.width/2, canvas.height/2);
+    }
+}
+
+/**
+ * UI / 設定関連
+ */
+function renderSettings() {
+    const list = document.getElementById('config-list');
+    list.innerHTML = '';
+    for (let action in ACTION_LABELS) {
+        let row = document.createElement('div');
+        row.className = 'config-row';
+        row.innerHTML = `
+            <span>${ACTION_LABELS[action]}</span>
+            <button class="config-btn" onclick="openOverlay('${action}')">${keyConfig[action] || '未設定'}</button>
+        `;
+        list.appendChild(row);
+    }
+}
+
+document.getElementById('settings-btn').addEventListener('click', () => {
+    gamePaused = true;
+    document.getElementById('modal').style.display = 'flex';
+    renderSettings();
+});
+
+function closeSettings() {
+    document.getElementById('modal').style.display = 'none';
+    gamePaused = false;
+    lastTime = performance.now();
+}
+
+function openOverlay(action) {
+    activeAction = action;
+    isConfiguring = true;
+    document.getElementById('overlay').style.display = 'flex';
+}
+
+function closeOverlay() {
+    activeAction = null;
+    isConfiguring = false;
+    document.getElementById('overlay').style.display = 'none';
+}
+
+init();
+
+</script>
+</body>
+</html>
